@@ -35,7 +35,7 @@ func (b bearerTransport) RoundTrip(request *http.Request) (*http.Response, error
 	return http.DefaultTransport.RoundTrip(request)
 }
 
-// setup поднимает сервер на временном клоне и подключает клиента
+// setup поднимает сервер на временном клоне и подключает клиента через настоящий вход
 func setup(t *testing.T) (*httptest.Server, *sdk.ClientSession, string) {
 	t.Helper()
 	directory := t.TempDir()
@@ -56,12 +56,13 @@ func setup(t *testing.T) (*httptest.Server, *sdk.ClientSession, string) {
 	server := mcpTransport.NewServer("test")
 	noteEndpointMCP.Register(server, noteService.NewNoteService(notes, gitSync))
 	gitSyncEndpointMCP.Register(server, gitSync)
-	testServer := httptest.NewServer(mcpTransport.NewHandler(server, "secret"))
+
+	testServer, auth := newAuthServer(t, server)
 	t.Cleanup(testServer.Close)
 
 	client := sdk.NewClient(&sdk.Implementation{Name: "test", Version: "1"}, nil)
 	session, err := client.Connect(context.Background(), &sdk.StreamableClientTransport{
-		Endpoint: testServer.URL + "/mcp", HTTPClient: &http.Client{Transport: bearerTransport{"secret"}},
+		Endpoint: testServer.URL + "/", HTTPClient: &http.Client{Transport: bearerTransport{auth.login(t).AccessToken}},
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +88,7 @@ func call(t *testing.T, session *sdk.ClientSession, name string, arguments map[s
 func TestRejectsMissingOrWrongToken(t *testing.T) {
 	testServer, _, _ := setup(t)
 	for _, header := range []string{"", "Bearer wrong", "secret"} {
-		request, _ := http.NewRequest(http.MethodPost, testServer.URL+"/mcp", strings.NewReader("{}"))
+		request, _ := http.NewRequest(http.MethodPost, testServer.URL+"/", strings.NewReader("{}"))
 		if header != "" {
 			request.Header.Set("Authorization", header)
 		}

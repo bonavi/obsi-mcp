@@ -14,6 +14,7 @@ services:
     volumes:
       - ${E2E_DIR:?}/server:/vault
       - ${E2E_DIR:?}/bare.git:/remote/bare.git
+      - ${E2E_DIR:?}/state:/state
     environment:
       SERVICE_NAME: obsi-mcp
       ENV: test
@@ -30,7 +31,12 @@ services:
       AUTOCOMMIT_AFTER: 6s
       LISTEN_MCP: ":8080"
       LISTEN_SERVICE_HTTP: ":8090"
-      AUTH_TOKEN: ${E2E_TOKEN:?}
+      MCP_PUBLIC_URL: http://127.0.0.1:18080
+      AUTH_PASSWORD_HASH: ${E2E_PASSWORD_HASH:?}
+      AUTH_TOKEN_SIGNING_KEY: ${E2E_SIGNING_KEY:?}
+      AUTH_ACCESS_TOKEN_TTL: 30m
+      AUTH_REFRESH_TOKEN_TTL: 720h
+      AUTH_STATE_FILE: /state/oauth.json
       GIT_CONFIG_COUNT: "1"
       GIT_CONFIG_KEY_0: safe.directory
       GIT_CONFIG_VALUE_0: "*"
