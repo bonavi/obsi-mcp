@@ -6,13 +6,17 @@ import (
 
 	sdkAuth "github.com/modelcontextprotocol/go-sdk/auth"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/modelcontextprotocol/go-sdk/oauthex"
 )
 
-const maxRequestBytes = 2 << 20 // Максимальный размер запроса
+const (
+	maxRequestBytes      = 2 << 20                                 // Максимальный размер запроса
+	ResourceMetadataPath = "/.well-known/oauth-protected-resource" // Путь метаданных защищенного ресурса (RFC 9728)
+)
 
 // NewHandler оборачивает MCP-сервер в HTTP: Bearer-токен проверяется до транспорта, затем
 // Streamable HTTP без сессий — каждый запрос независим и переживает перезапуск пода
-func NewHandler(server *sdk.Server, token string) http.Handler {
+func NewHandler(server *sdk.Server, sessionChecker SessionChecker, publicURL string) http.Handler {
 	transport := sdk.NewStreamableHTTPHandler(
 		func(*http.Request) *sdk.Server { return server },
 		&sdk.StreamableHTTPOptions{ //nolint:exhaustruct
@@ -27,7 +31,8 @@ func NewHandler(server *sdk.Server, token string) http.Handler {
 		transport.ServeHTTP(writer, request)
 	})
 
-	requireToken := sdkAuth.RequireBearerToken(NewTokenVerifier(token), &sdkAuth.RequireBearerTokenOptions{ //nolint:exhaustruct
+	requireToken := sdkAuth.RequireBearerToken(NewTokenVerifier(sessionChecker), &sdkAuth.RequireBearerTokenOptions{ //nolint:exhaustruct
+		ResourceMetadataURL:    publicURL + ResourceMetadataPath,
 		AllowMissingExpiration: true,
 	})
 	protected := requireToken(limited)
@@ -39,5 +44,16 @@ func NewHandler(server *sdk.Server, token string) http.Handler {
 		if recorder.status == http.StatusUnauthorized {
 			log.Warning("MCP: отклонён запрос без действующего токена")
 		}
+	})
+}
+
+// NewResourceMetadataHandler отдает метаданные защищенного ресурса: клиент узнает из них, где
+// Authorization Server. У нас это тот же хост
+func NewResourceMetadataHandler(publicURL string) http.Handler {
+	return sdkAuth.ProtectedResourceMetadataHandler(&oauthex.ProtectedResourceMetadata{ //nolint:exhaustruct
+		Resource:               publicURL,
+		AuthorizationServers:   []string{publicURL},
+		BearerMethodsSupported: []string{"header"},
+		ResourceName:           "Obsidian",
 	})
 }

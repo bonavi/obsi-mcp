@@ -2,16 +2,22 @@ package main
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"pkg/gracefulShutdown"
 	fiber2 "pkg/http/fiber"
+	"pkg/jwtManager"
 	"pkg/log"
 	"pkg/log/model"
 	"pkg/middleware"
 	"pkg/panicRecover"
 	"pkg/stackTrace"
+	"strings"
 	"syscall"
 
 	"github.com/gofiber/fiber/v2"
@@ -27,9 +33,14 @@ import (
 	noteEndpointMCP "server/internal/modules/note/endpoint/mcp"
 	noteRepository "server/internal/modules/note/repository"
 	noteService "server/internal/modules/note/service"
+	oauthEndpointHTTP "server/internal/modules/oauth/endpoint/http"
+	oauthRepository "server/internal/modules/oauth/repository"
+	oauthService "server/internal/modules/oauth/service"
 	"server/internal/utils/errors"
 	mcpTransport "server/internal/utils/mcp"
 )
+
+const minimalSigningKeyLength = 32 // Минимальная длина ключа подписи
 
 const version = "@{version}"
 const build = "@{build}"
@@ -94,15 +105,40 @@ func run() error {
 		return err
 	}
 
+	// Настраиваем OAuth
+	if err = validateAuthConfig(conf); err != nil {
+		return err
+	}
+	jwtManager.Init([]byte(conf.Auth.SigningKey), conf.Auth.AccessTokenTTL, conf.Auth.RefreshTokenTTL)
+	sessions, err := oauthRepository.NewOAuthRepository(conf.Auth.StateFile)
+	if err != nil {
+		return err
+	}
+	oauth, err := oauthService.NewOAuthService(sessions, oauthService.Config{
+		PublicURL:       conf.MCP.PublicURL,
+		AccessTokenTTL:  conf.Auth.AccessTokenTTL,
+		RefreshTokenTTL: conf.Auth.RefreshTokenTTL,
+		PasswordHash:    conf.Auth.PasswordHash,
+		ClientKey:       deriveClientKey(conf.Auth.SigningKey),
+	})
+	if err != nil {
+		return err
+	}
+
 	// Настраиваем MCP-сервер: инструменты регистрируют модули в своих endpoint/mcp
 	mcpServer := mcpTransport.NewServer(version)
 	noteEndpointMCP.Register(mcpServer, noteService.NewNoteService(notes, gitSync))
 	gitSyncEndpointMCP.Register(mcpServer, gitSync)
+	mcpMux := http.NewServeMux()
+	oauthEndpointHTTP.NewOAuthEndpoint(oauth).Register(mcpMux)
+	mcpMux.Handle("GET "+mcpTransport.ResourceMetadataPath, mcpTransport.NewResourceMetadataHandler(conf.MCP.PublicURL))
+	mcpMux.Handle("GET "+mcpTransport.ResourceMetadataPath+"/", mcpTransport.NewResourceMetadataHandler(conf.MCP.PublicURL))
+	mcpMux.Handle("/", mcpTransport.NewHandler(mcpServer, oauth, conf.MCP.PublicURL))
 	mcpHTTPServer, err := fiber2.GetDefaultServer(conf.ServiceName, nil)
 	if err != nil {
 		return err
 	}
-	mcpHTTPServer.All("/*", adaptor.HTTPHandler(mcpTransport.NewHandler(mcpServer, conf.AuthToken)))
+	mcpHTTPServer.All("/*", adaptor.HTTPHandler(mcpMux))
 
 	// Настраиваем служебный HTTP-сервер
 	serviceHTTPServer, err := fiber2.GetDefaultServer(conf.ServiceName, nil)
@@ -150,4 +186,27 @@ func run() error {
 
 	// Ждем завершения контекста или ошибок в горутинах
 	return eg.Wait()
+}
+
+// validateAuthConfig не даёт стартовать со слабым ключом или файлом сессий внутри базы:
+// git add -A отправил бы его на GitHub
+func validateAuthConfig(conf config.Config) error {
+	if len(conf.Auth.SigningKey) < minimalSigningKeyLength {
+		return errors.InternalServer.New("AUTH_TOKEN_SIGNING_KEY is too short")
+	}
+	relativePath, err := filepath.Rel(conf.Vault.Directory, conf.Auth.StateFile)
+	if err != nil {
+		return errors.InternalServer.Wrap(err)
+	}
+	if relativePath != ".." && !strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+		return errors.InternalServer.New("AUTH_STATE_FILE must be outside VAULT_DIR")
+	}
+	return nil
+}
+
+// deriveClientKey выводит отдельный ключ подписи client_id, чтобы он не совпадал с ключом токенов
+func deriveClientKey(signingKey string) []byte {
+	signer := hmac.New(sha256.New, []byte(signingKey))
+	signer.Write([]byte("oauth-client-id"))
+	return signer.Sum(nil)
 }

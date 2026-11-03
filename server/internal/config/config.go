@@ -11,11 +11,24 @@ type Config struct {
 	ServiceName         string `env:"SERVICE_NAME,notEmpty"`  // Имя сервиса в логах
 	Environment         string `env:"ENV,notEmpty"`           // Окружение
 	IsStackTraceEnabled bool   `env:"IS_STACK_TRACE_ENABLED"` // Признак записи стектрейсов
-	AuthToken           string `env:"AUTH_TOKEN,notEmpty"`    // Статический токен доступа до появления OAuth
 
 	Listen struct {
 		ServiceHTTP string `env:"LISTEN_SERVICE_HTTP,notEmpty"` // Адрес служебного HTTP-сервера
 		MCP         string `env:"LISTEN_MCP,notEmpty"`          // Адрес MCP-сервера
+	}
+
+	// MCP-слой: авторизация по OAuth 2.1
+	MCP struct {
+		PublicURL string `env:"MCP_PUBLIC_URL,notEmpty"` // Канонический публичный URL без завершающего слэша
+	}
+
+	// Вход единственного пользователя и токены
+	Auth struct {
+		PasswordHash    string        `env:"AUTH_PASSWORD_HASH,notEmpty"`     // Хэш пароля argon2id, см. cmd/hashPassword
+		SigningKey      string        `env:"AUTH_TOKEN_SIGNING_KEY,notEmpty"` // Ключ подписи токенов
+		AccessTokenTTL  time.Duration `env:"AUTH_ACCESS_TOKEN_TTL,notEmpty"`  // Срок жизни access-токена
+		RefreshTokenTTL time.Duration `env:"AUTH_REFRESH_TOKEN_TTL,notEmpty"` // Срок жизни refresh-токена
+		StateFile       string        `env:"AUTH_STATE_FILE,notEmpty"`        // Файл с refresh-сессиями, вне базы заметок
 	}
 
 	Logger log.LoggerSettingsEnv // Настройки логгера
