@@ -1,0 +1,36 @@
+# Локальная проверка на тестовом репозитории: см. scripts/e2e.sh. Настоящую базу сюда не подключать.
+services:
+  obsi-mcp:
+    build:
+      context: .
+      dockerfile: build/Dockerfile
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: [/tmp]
+    pids_limit: 200
+    mem_limit: 256m
+    ports: ["127.0.0.1:18080:8080", "127.0.0.1:18090:8090"]
+    volumes:
+      - ${E2E_DIR:?}/server:/vault
+      - ${E2E_DIR:?}/bare.git:/remote/bare.git
+    environment:
+      SERVICE_NAME: obsi-mcp
+      ENV: test
+      IS_STACK_TRACE_ENABLED: "true"
+      LOG_LEVEL: info
+      LOG_FORMAT: json
+      VAULT_DIR: /vault
+      VAULT_DENY_PATHS: "Здоровье,Личное"
+      GIT_REMOTE: origin
+      GIT_BRANCH: main
+      GIT_AUTHOR_NAME: claude-test
+      GIT_AUTHOR_EMAIL: claude-test@example.invalid
+      SYNC_INTERVAL: 2s
+      AUTOCOMMIT_AFTER: 6s
+      LISTEN_MCP: ":8080"
+      LISTEN_SERVICE_HTTP: ":8090"
+      AUTH_TOKEN: ${E2E_TOKEN:?}
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: "*"
