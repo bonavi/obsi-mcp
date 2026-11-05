@@ -203,3 +203,53 @@ func TestRebaseFailureWithoutConflictKeepsEdits(t *testing.T) {
 		t.Fatalf("unexpected branch %q", got)
 	}
 }
+
+func TestCommitPushesImmediately(t *testing.T) {
+	r, bare, server, _ := setup(t)
+	write(t, server, "s.md", "server")
+	result, err := r.Commit(context.Background(), model.CommitReq{Message: "сразу"})
+	if err != nil || !result.IsCommitted || !result.IsPushed {
+		t.Fatalf("commit: %+v %v", result, err)
+	}
+	if got := run(t, bare, "log", "-1", "--format=%s", "main"); got != "сразу" {
+		t.Fatalf("remote head %q", got)
+	}
+}
+
+func TestCommitKeepsCommitWhenPushFails(t *testing.T) {
+	r, bare, server, _ := setup(t)
+	before := run(t, bare, "rev-parse", "main")
+	run(t, server, "remote", "set-url", "--push", "origin", bare+"-missing")
+	write(t, server, "s.md", "server")
+	result, err := r.Commit(context.Background(), model.CommitReq{Message: "сеть упала"})
+	if err != nil || !result.IsCommitted || result.IsPushed {
+		t.Fatalf("commit: %+v %v", result, err)
+	}
+	if run(t, server, "log", "-1", "--format=%s") != "сеть упала" || run(t, bare, "rev-parse", "main") != before {
+		t.Fatal("commit must stay local")
+	}
+
+	// Следующий проход дошлёт коммит
+	run(t, server, "remote", "set-url", "--push", "origin", bare)
+	if err = r.sync(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := run(t, bare, "log", "-1", "--format=%s", "main"); got != "сеть упала" {
+		t.Fatalf("remote head %q", got)
+	}
+}
+
+func TestCommitReportsConflictAtOnce(t *testing.T) {
+	r, _, server, mac := setup(t)
+	write(t, mac, "a.md", "mac\n")
+	run(t, mac, "commit", "-qam", "mac")
+	run(t, mac, "push", "-q", "origin", "main")
+	write(t, server, "a.md", "server\n")
+	result, err := r.Commit(context.Background(), model.CommitReq{Message: "конфликт"})
+	if err != nil || !result.IsCommitted || result.IsPushed {
+		t.Fatalf("commit: %+v %v", result, err)
+	}
+	if !strings.Contains(result.Notice, "claude/conflict-") {
+		t.Fatalf("notice %q", result.Notice)
+	}
+}

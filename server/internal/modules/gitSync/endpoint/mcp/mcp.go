@@ -28,6 +28,6 @@ func Register(server *sdk.Server, gitSyncService GitSyncService) {
 
 	sdk.AddTool(server, &sdk.Tool{ //nolint:exhaustruct
 		Name:        "commit",
-		Description: "Коммитит все накопленные правки. Отправляет их сервер сам",
+		Description: "Коммитит все накопленные правки и сразу отправляет их на сервер git",
 	}, tools.Commit)
 }

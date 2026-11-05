@@ -17,6 +17,7 @@ type CommitIn struct {
 // CommitOut — результат коммита
 type CommitOut struct {
 	IsCommitted bool   `json:"committed"`        // Признак созданного коммита
+	IsPushed    bool   `json:"pushed"`           // Признак отправки в основную ветку
 	Notice      string `json:"notice,omitempty"` // Сообщение о конфликте git
 }
 
@@ -26,5 +27,5 @@ func (t *GitSyncTools) Commit(ctx context.Context, _ *sdk.CallToolRequest, in Co
 	if err != nil {
 		return nil, CommitOut{}, mcpTransport.ToolError(err)
 	}
-	return nil, CommitOut{IsCommitted: result.IsCommitted, Notice: result.Notice}, nil
+	return nil, CommitOut{IsCommitted: result.IsCommitted, IsPushed: result.IsPushed, Notice: result.Notice}, nil
 }

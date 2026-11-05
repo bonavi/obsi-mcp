@@ -53,7 +53,6 @@ check "выход за базу" "$(tool read '{"path":"../../etc/passwd.md"}' |
 check "запись в .git" "$(tool write '{"path":".git/hooks/x.md","content":"x"}' | iserr)" True
 check "поиск не видит тайну" "$(tool search '{"query":"тайна"}' | field hits | tr -d "[]")" ""
 check "коммит от Claude" "$(tool commit '{"message":"правка заметки"}' | field committed)" True
-sleep 5
 check "сервер запушил" "$(git -C "$E2E_DIR/bare.git" log -1 --format=%s main)" "правка заметки"
 
 tool append '{"path":"note.md","text":"забыт коммит"}' >/dev/null
