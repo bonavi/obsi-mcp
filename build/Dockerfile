@@ -10,10 +10,14 @@ RUN sed -i -e "s|@{build}|${BUILD}|g" -e "s|@{version}|${VERSION}|g" -e "s|@{bui
 RUN CGO_ENABLED=0 go build -trimpath -o ../main internal/main.go
 
 FROM alpine:3.22
-RUN apk add --no-cache git openssh-client && adduser -D -u 1000 mcp
+# tini — PID 1: забирает осиротевших потомков. git отсоединяет фоновые gc/maintenance,
+# а при таймауте CommandContext остаётся сирота ssh; ./main как PID 1 их не реапит,
+# и на ноде копились тысячи зомби (2026-11-11)
+RUN apk add --no-cache git openssh-client tini && adduser -D -u 1000 mcp
 WORKDIR /obsi-mcp
 COPY --from=builder /obsi-mcp/main .
 EXPOSE 8080
 EXPOSE 8090
 USER 1000
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["./main"]
