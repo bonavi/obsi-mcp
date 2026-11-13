@@ -31,6 +31,9 @@ const (
 	testRedirect = "https://claude.ai/api/mcp/auth_callback" // Адрес возврата в тестах
 )
 
+// testLoopbackPaths — пути возврата локальных клиентов в тестах, как в проде
+var testLoopbackPaths = []string{"/callback", "/mcp-oauth-callback"}
+
 // authServer — сервер авторизации в тесте
 type authServer struct {
 	url       string // Адрес сервера
@@ -69,6 +72,7 @@ func mountOAuth(t *testing.T, mux *http.ServeMux, server *sdk.Server, stateFile,
 	service, err := oauthService.NewOAuthService(repository, oauthService.Config{
 		PublicURL: publicURL, AccessTokenTTL: 30 * time.Minute, RefreshTokenTTL: 720 * time.Hour,
 		PasswordHash: passwordHash(), ClientKey: []byte("client-key"),
+		LoopbackRedirectPaths: testLoopbackPaths,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -208,7 +212,7 @@ func TestRegisterRejectsForeignRedirects(t *testing.T) {
 			t.Errorf("%s: status %d", redirect, status)
 		}
 	}
-	for _, redirect := range []string{testRedirect, "http://localhost:3118/callback", "http://127.0.0.1:9/callback"} {
+	for _, redirect := range []string{testRedirect, "http://localhost:3118/callback", "http://127.0.0.1:9/callback", "http://127.0.0.1:33389/mcp-oauth-callback"} {
 		if status, _ := auth.register(t, redirect); status != http.StatusCreated {
 			t.Errorf("%s: status %d", redirect, status)
 		}
@@ -250,6 +254,9 @@ func TestLoopbackPortIsIgnored(t *testing.T) {
 	}
 	if response := auth.authorize(t, clientID, "http://127.0.0.1:3118/callback", testPassword, nil); response.StatusCode != http.StatusBadRequest {
 		t.Errorf("other host: status %d", response.StatusCode)
+	}
+	if response := auth.authorize(t, clientID, "http://localhost:3118/mcp-oauth-callback", testPassword, nil); response.StatusCode != http.StatusBadRequest {
+		t.Errorf("other path: status %d", response.StatusCode)
 	}
 }
 
@@ -368,6 +375,7 @@ func TestSessionsSurviveRestartAndHideTokens(t *testing.T) {
 	}
 	service, err := oauthService.NewOAuthService(repository, oauthService.Config{
 		PublicURL: auth.url, AccessTokenTTL: time.Minute, RefreshTokenTTL: time.Hour, PasswordHash: passwordHash(), ClientKey: []byte("client-key"),
+		LoopbackRedirectPaths: testLoopbackPaths,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -14,7 +14,7 @@ func (s *OAuthService) ValidateAuthorize(req model.AuthorizeReq) (model.Client, 
 	}
 	registered := false
 	for _, redirectURI := range client.RedirectURIs {
-		registered = registered || sameRedirectURI(redirectURI, req.RedirectURI)
+		registered = registered || s.sameRedirectURI(redirectURI, req.RedirectURI)
 	}
 	if !registered {
 		return client, model.NewOAuthError("invalid_request", redirectNotRegistered)

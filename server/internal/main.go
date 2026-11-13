@@ -120,6 +120,8 @@ func run() error {
 		RefreshTokenTTL: conf.Auth.RefreshTokenTTL,
 		PasswordHash:    conf.Auth.PasswordHash,
 		ClientKey:       deriveClientKey(conf.Auth.SigningKey),
+
+		LoopbackRedirectPaths: conf.Auth.LoopbackRedirectPaths,
 	})
 	if err != nil {
 		return err

@@ -29,6 +29,8 @@ type Config struct {
 		AccessTokenTTL  time.Duration `env:"AUTH_ACCESS_TOKEN_TTL,notEmpty"`  // Срок жизни access-токена
 		RefreshTokenTTL time.Duration `env:"AUTH_REFRESH_TOKEN_TTL,notEmpty"` // Срок жизни refresh-токена
 		StateFile       string        `env:"AUTH_STATE_FILE,notEmpty"`        // Файл с refresh-сессиями, вне базы заметок
+
+		LoopbackRedirectPaths []string `env:"AUTH_LOOPBACK_REDIRECT_PATHS,notEmpty"` // Пути возврата локальных клиентов на localhost: /callback — Claude Code, /mcp-oauth-callback — LM Studio
 	}
 
 	Logger log.LoggerSettingsEnv // Настройки логгера

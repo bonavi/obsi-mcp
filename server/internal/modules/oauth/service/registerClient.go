@@ -19,7 +19,7 @@ func (s *OAuthService) RegisterClient(req model.RegisterClientReq) (model.Regist
 		return res, model.NewOAuthError("invalid_redirect_uri", "redirect_uris is required")
 	}
 	for _, redirectURI := range req.RedirectURIs {
-		if !isAllowedRedirectURI(redirectURI) {
+		if !s.isAllowedRedirectURI(redirectURI) {
 			return res, model.NewOAuthError("invalid_redirect_uri", "redirect_uri is not allowed")
 		}
 	}

@@ -37,6 +37,7 @@ services:
       AUTH_ACCESS_TOKEN_TTL: 30m
       AUTH_REFRESH_TOKEN_TTL: 720h
       AUTH_STATE_FILE: /state/oauth.json
+      AUTH_LOOPBACK_REDIRECT_PATHS: /callback,/mcp-oauth-callback
       GIT_CONFIG_COUNT: "1"
       GIT_CONFIG_KEY_0: safe.directory
       GIT_CONFIG_VALUE_0: "*"
