@@ -27,6 +27,8 @@ type Config struct {
 	RefreshTokenTTL time.Duration // Срок жизни refresh-токена
 	PasswordHash    string        // Хэш пароля в формате argon2id
 	ClientKey       []byte        // Ключ подписи client_id
+
+	LoopbackRedirectPaths []string // Разрешённые пути возврата локальных клиентов на localhost
 }
 
 // OAuthService — Authorization Server
